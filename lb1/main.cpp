@@ -5,11 +5,19 @@
 #include <png.h>
 #include <climits>
 #include <cstdint>
+#include <cmath>
+#include <chrono>
 
 using namespace std;
+using namespace std::chrono;
 
 struct Square {
     int x, y, w;
+};
+
+struct SolveResult {
+    vector<Square> squares;
+    int iterations;
 };
 
 class BitGrid {
@@ -32,13 +40,6 @@ public:
         uint32_t mask = ((1U << size) - 1) << (N - y - size);
         for (int i = x; i < x + size; ++i) {
             rows[i] |= mask;
-        }
-    }
-
-    void unplace(int x, int y, int size) {
-        uint32_t mask = ~(((1U << size) - 1) << (N - y - size));
-        for (int i = x; i < x + size; ++i) {
-            rows[i] &= mask;
         }
     }
 
@@ -82,8 +83,13 @@ vector<Square> upscale(const vector<Square>& squares, int scale) {
     return result;
 }
 
-vector<Square> solveOriginal(int N) {
-    if (N == 1) return {{1, 1, 1}};
+SolveResult solveOriginal(int N) {
+    int iterationCount = 0;
+    vector<Square> best;
+    if (N == 1) {
+        best.push_back({1, 1, 1});
+        return {best, 0};
+    }
 
     stack<pair<BitGrid, vector<Square>>> stack;
     BitGrid initial(N);
@@ -101,10 +107,10 @@ vector<Square> solveOriginal(int N) {
     }
 
     stack.push({initial, squares});
-    vector<Square> best;
     int minCount = INT_MAX;
 
     while (!stack.empty()) {
+        iterationCount++;
         auto top = stack.top();
         BitGrid grid = top.first;
         vector<Square> current = top.second;
@@ -115,18 +121,27 @@ vector<Square> solveOriginal(int N) {
             if (current.size() < minCount) {
                 minCount = current.size();
                 best = current;
+                cout << "New Best Result: " << minCount << " squares" << endl;
+                for (const auto& sq : best) {
+                    cout << sq.x << " " << sq.y << " " << sq.w << endl;
+                }
             }
             continue;
         }
 
         int pos = grid.findFirstEmpty();
         if (pos == -1) continue;
-
         int x = pos / N;
         int y = pos % N;
 
+        cout << "Found free position: x=" << x + 1 << ", y=" << y + 1 << endl;
+
         for (int s = min(N - x, N - y); s >= 1; --s) {
-            if (!grid.canPlace(x, y, s)) continue;
+            if (!grid.canPlace(x, y, s)) {
+                cout << "Unable to place a square " << s << " at (" << x + 1 << ", " << y + 1 << ")" << endl;
+                continue;
+            }
+            cout << "Attempting to place square of size " << s << " at (" << x + 1 << ", " << y + 1 << ")" << endl;
 
             BitGrid newGrid = grid;
             newGrid.place(x, y, s);
@@ -137,19 +152,24 @@ vector<Square> solveOriginal(int N) {
         }
     }
 
-    return best;
+    return {best, iterationCount};
 }
 
-vector<Square> solveScaled(int N) {
+SolveResult solveScaled(int N) {
     pair<int, int> scalePair = ScaleSize(N);
     int d = scalePair.first;
     int scale = scalePair.second;
-    if (scale == 1) return solveOriginal(N);
-    auto subSolution = solveOriginal(d);
-    return upscale(subSolution, scale);
+    if (scale == 1) {
+        return solveOriginal(N);
+    }
+    auto subResult = solveOriginal(d);
+    auto scaled = upscale(subResult.squares, scale);
+    return {scaled, subResult.iterations};
 }
 
+
 void saveImage(const string& filename, int N, const vector<Square>& squares, int scale = 50) {
+
     int width = N * scale;
     int height = N * scale;
 
@@ -202,14 +222,14 @@ void saveImage(const string& filename, int N, const vector<Square>& squares, int
 
     FILE* fp = fopen(filename.c_str(), "wb");
     if (!fp) {
-        cerr << "Ошибка открытия файла!" << endl;
+        cerr << "Error opening file" << endl;
         return;
     }
 
     png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
     if (!png) {
         fclose(fp);
-        cerr << "Ошибка создания PNG структуры!" << endl;
+        cerr << "Error creating png" << endl;
         return;
     }
 
@@ -217,14 +237,14 @@ void saveImage(const string& filename, int N, const vector<Square>& squares, int
     if (!info) {
         png_destroy_write_struct(&png, nullptr);
         fclose(fp);
-        cerr << "Ошибка создания PNG info!" << endl;
+        cerr << "Error creating PNG info!" << endl;
         return;
     }
 
     if (setjmp(png_jmpbuf(png))) {
         png_destroy_write_struct(&png, &info);
         fclose(fp);
-        cerr << "Ошибка записи PNG!" << endl;
+        cerr << "Error writting PNG!" << endl;
         return;
     }
 
@@ -246,16 +266,22 @@ void saveImage(const string& filename, int N, const vector<Square>& squares, int
     fclose(fp);
 }
 
-
 int main() {
     int N;
     cin >> N;
+    auto start = high_resolution_clock::now();
     auto result = solveScaled(N);
-    cout << result.size() << endl;
-    for (const auto& sq : result) {
+    auto end = high_resolution_clock::now();
+    duration<double> elapsed = end - start;
+
+    cout << result.squares.size() << endl;
+    for (const auto& sq : result.squares) {
         cout << sq.x << " " << sq.y << " " << sq.w << endl;
     }
 
-    saveImage("output.png", N, result);
+    cout << "Total iterations: " << result.iterations << endl;
+    cout << "Execution time: " << elapsed.count() << " seconds" << endl;
+
+    saveImage("output.png", N, result.squares);
     return 0;
 }
