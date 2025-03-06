@@ -83,7 +83,7 @@ vector<Square> upscale(const vector<Square>& squares, int scale) {
     return result;
 }
 
-SolveResult solveOriginal(int N) {
+SolveResult solveOriginal(int N, bool verbose) {
     int iterationCount = 0;
     vector<Square> best;
     if (N == 1) {
@@ -95,7 +95,7 @@ SolveResult solveOriginal(int N) {
     BitGrid initial(N);
     vector<Square> squares;
 
-    int mainSize = (N + 1) / 2;
+    int mainSize = (N + 1)/2;
     initial.place(0, 0, mainSize);
     squares.push_back({1, 1, mainSize});
 
@@ -121,9 +121,11 @@ SolveResult solveOriginal(int N) {
             if (current.size() < minCount) {
                 minCount = current.size();
                 best = current;
-                cout << "New Best Result: " << minCount << " squares" << endl;
-                for (const auto& sq : best) {
-                    cout << sq.x << " " << sq.y << " " << sq.w << endl;
+                if (verbose) {
+                    cout << "New Best Result: " << minCount << " squares" << endl;
+                    for (const auto& sq : best) {
+                        cout << sq.x << " " << sq.y << " " << sq.w << endl;
+                    }
                 }
             }
             continue;
@@ -134,14 +136,17 @@ SolveResult solveOriginal(int N) {
         int x = pos / N;
         int y = pos % N;
 
-        cout << "Found free position: x=" << x + 1 << ", y=" << y + 1 << endl;
+        if (verbose)  // Вывод только с флагом -l
+            cout << "Found free position: x=" << x + 1 << ", y=" << y + 1 << endl;
 
         for (int s = min(N - x, N - y); s >= 1; --s) {
             if (!grid.canPlace(x, y, s)) {
-                cout << "Unable to place a square " << s << " at (" << x + 1 << ", " << y + 1 << ")" << endl;
+                if (verbose)  // Вывод только с флагом -l
+                    cout << "Unable to place a square " << s << " at (" << x + 1 << ", " << y + 1 << ")" << endl;
                 continue;
             }
-            cout << "Attempting to place square of size " << s << " at (" << x + 1 << ", " << y + 1 << ")" << endl;
+            if (verbose)  // Вывод только с флагом -l
+                cout << "Attempting to place square of size " << s << " at (" << x + 1 << ", " << y + 1 << ")" << endl;
 
             BitGrid newGrid = grid;
             newGrid.place(x, y, s);
@@ -155,14 +160,14 @@ SolveResult solveOriginal(int N) {
     return {best, iterationCount};
 }
 
-SolveResult solveScaled(int N) {
+SolveResult solveScaled(int N, bool verbose) {
     pair<int, int> scalePair = ScaleSize(N);
     int d = scalePair.first;
     int scale = scalePair.second;
     if (scale == 1) {
-        return solveOriginal(N);
+        return solveOriginal(N, verbose);
     }
-    auto subResult = solveOriginal(d);
+    auto subResult = solveOriginal(d, verbose);
     auto scaled = upscale(subResult.squares, scale);
     return {scaled, subResult.iterations};
 }
@@ -266,11 +271,18 @@ void saveImage(const string& filename, int N, const vector<Square>& squares, int
     fclose(fp);
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+    bool verbose = false;
+    for (int i = 1; i < argc; ++i) {
+        if (string(argv[i]) == "-l") {
+            verbose = true;
+        }
+    }
+
     int N;
     cin >> N;
     auto start = high_resolution_clock::now();
-    auto result = solveScaled(N);
+    auto result = solveScaled(N, verbose);
     auto end = high_resolution_clock::now();
     duration<double> elapsed = end - start;
 
