@@ -136,16 +136,16 @@ SolveResult solveOriginal(int N, bool verbose) {
         int x = pos / N;
         int y = pos % N;
 
-        if (verbose)  // Вывод только с флагом -l
+        if (verbose)  
             cout << "Found free position: x=" << x + 1 << ", y=" << y + 1 << endl;
 
         for (int s = min(N - x, N - y); s >= 1; --s) {
             if (!grid.canPlace(x, y, s)) {
-                if (verbose)  // Вывод только с флагом -l
+                if (verbose)  
                     cout << "Unable to place a square " << s << " at (" << x + 1 << ", " << y + 1 << ")" << endl;
                 continue;
             }
-            if (verbose)  // Вывод только с флагом -l
+            if (verbose)  
                 cout << "Attempting to place square of size " << s << " at (" << x + 1 << ", " << y + 1 << ")" << endl;
 
             BitGrid newGrid = grid;
